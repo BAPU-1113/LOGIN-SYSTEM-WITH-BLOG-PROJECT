@@ -1,0 +1,391 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Dish Booking System API",
+    "version": "1.0.0",
+    "description": "RESTful API for Dish Booking System featuring Multi-Role Access Control (Admin, Chef, User), Random Chef Assignment, Order Lifecycle Management, Nodemailer Delivery Notifications, and Password Reset.",
+    "contact": {
+      "name": "Satyajit Vala",
+      "email": "student@college.edu"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your JWT token (e.g. Bearer eyJhbGci...)"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "654321abcdef123456789012" },
+          "name": { "type": "string", "example": "Aarav Sharma" },
+          "email": { "type": "string", "example": "aarav@example.com" },
+          "role": { "type": "string", "enum": ["admin", "chef", "user"], "example": "user" },
+          "phone": { "type": "string", "example": "+919876543210" }
+        }
+      },
+      "Dish": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "654321abcdef123456789034" },
+          "name": { "type": "string", "example": "Paneer Butter Masala" },
+          "description": { "type": "string", "example": "Rich cottage cheese in creamy tomato gravy" },
+          "price": { "type": "number", "example": 280.0 },
+          "category": { "type": "string", "example": "Main Course" },
+          "cuisine": { "type": "string", "example": "North Indian" },
+          "isAvailable": { "type": "boolean", "example": true }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string", "example": "654321abcdef123456789056" },
+          "user": { "$ref": "#/components/schemas/User" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "dish": { "type": "string" },
+                "name": { "type": "string", "example": "Paneer Butter Masala" },
+                "price": { "type": "number", "example": 280.0 },
+                "quantity": { "type": "number", "example": 2 }
+              }
+            }
+          },
+          "totalAmount": { "type": "number", "example": 560.0 },
+          "status": {
+            "type": "string",
+            "enum": ["Order Received", "Preparing", "Out for Delivery", "Delivered", "Cancelled"],
+            "example": "Order Received"
+          },
+          "assignedChef": { "$ref": "#/components/schemas/User" },
+          "deliveryAddress": { "type": "string", "example": "Flat 402, Sunshine Heights, Mumbai" },
+          "contactPhone": { "type": "string", "example": "+919876543210" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/auth/signup": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register a new user (role: user, chef, admin)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "name": { "type": "string", "example": "Rahul Mehta" },
+                  "email": { "type": "string", "example": "rahul@example.com" },
+                  "password": { "type": "string", "example": "pass1234" },
+                  "role": { "type": "string", "enum": ["user", "chef", "admin"], "default": "user" },
+                  "phone": { "type": "string", "example": "+919820011223" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created successfully" },
+          "400": { "description": "Validation error" },
+          "409": { "description": "Email already exists" }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Log in and obtain JWT authorization token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "example": "rahul@example.com" },
+                  "password": { "type": "string", "example": "pass1234" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Authenticated successfully" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Get authenticated user profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "User profile" }
+        }
+      }
+    },
+    "/api/auth/forgot-password": {
+      "post": {
+        "tags": ["Authentication & Password Reset"],
+        "summary": "Request password reset link dispatched via email",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "example": "rahul@example.com" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Reset token sent via email" }
+        }
+      }
+    },
+    "/api/auth/reset-password/{token}": {
+      "post": {
+        "tags": ["Authentication & Password Reset"],
+        "summary": "Reset password using token",
+        "parameters": [
+          { "name": "token", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["password"],
+                "properties": {
+                  "password": { "type": "string", "example": "newPassword123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Password reset successful" },
+          "400": { "description": "Token invalid or expired" }
+        }
+      }
+    },
+    "/api/dishes": {
+      "get": {
+        "tags": ["Dishes (Admin CRUD)"],
+        "summary": "Get all dishes with optional filters (category, search, availability)",
+        "parameters": [
+          { "name": "category", "in": "query", "schema": { "type": "string" } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "available", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": { "description": "List of dishes" }
+        }
+      },
+      "post": {
+        "tags": ["Dishes (Admin CRUD)"],
+        "summary": "Create a new dish (Admin only)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "description", "price"],
+                "properties": {
+                  "name": { "type": "string", "example": "Dal Makhani" },
+                  "description": { "type": "string", "example": "Slow cooked black lentils with cream and butter" },
+                  "price": { "type": "number", "example": 240.0 },
+                  "category": { "type": "string", "example": "Main Course" },
+                  "cuisine": { "type": "string", "example": "North Indian" },
+                  "isAvailable": { "type": "boolean", "example": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Dish created" },
+          "403": { "description": "Forbidden - Admin role required" }
+        }
+      }
+    },
+    "/api/dishes/{id}": {
+      "get": {
+        "tags": ["Dishes (Admin CRUD)"],
+        "summary": "Get single dish by ID",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Dish found" },
+          "404": { "description": "Dish not found" }
+        }
+      },
+      "put": {
+        "tags": ["Dishes (Admin CRUD)"],
+        "summary": "Update dish details (Admin only)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Dish" } } }
+        },
+        "responses": {
+          "200": { "description": "Dish updated" },
+          "403": { "description": "Forbidden" }
+        }
+      },
+      "delete": {
+        "tags": ["Dishes (Admin CRUD)"],
+        "summary": "Delete a dish (Admin only)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Dish deleted" }
+        }
+      }
+    },
+    "/api/orders": {
+      "post": {
+        "tags": ["Orders (User CRUD & Random Chef Assignment)"],
+        "summary": "Place an order (Initial status: 'Order Received', automatically assigned to random chef)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["deliveryAddress", "contactPhone"],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "dishId": { "type": "string" },
+                        "quantity": { "type": "integer", "default": 1 }
+                      }
+                    }
+                  },
+                  "deliveryAddress": { "type": "string", "example": "402 Palm Court, Mumbai" },
+                  "contactPhone": { "type": "string", "example": "+919876543210" },
+                  "specialInstructions": { "type": "string", "example": "Extra napkins please" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Order placed and assigned to random chef" }
+        }
+      },
+      "get": {
+        "tags": ["Orders (User CRUD & Random Chef Assignment)"],
+        "summary": "Get orders (Users view own orders, Chefs view assigned, Admins view all)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "List of orders" }
+        }
+      }
+    },
+    "/api/orders/{id}": {
+      "get": {
+        "tags": ["Orders (User CRUD & Random Chef Assignment)"],
+        "summary": "Get order by ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Order details" }
+        }
+      },
+      "put": {
+        "tags": ["Orders (User CRUD & Random Chef Assignment)"],
+        "summary": "Update own order (User only, allowed while in 'Order Received' state)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deliveryAddress": { "type": "string" },
+                  "contactPhone": { "type": "string" },
+                  "specialInstructions": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Order updated" }
+        }
+      },
+      "delete": {
+        "tags": ["Orders (User CRUD & Random Chef Assignment)"],
+        "summary": "Cancel and delete own order (User only)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Order cancelled" }
+        }
+      }
+    },
+    "/api/orders/{id}/status": {
+      "patch": {
+        "tags": ["Chef Order Status & Delivery Email"],
+        "summary": "Chef updates order status (Preparing, Out for Delivery, Delivered -> triggers email notification)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["Preparing", "Out for Delivery", "Delivered"],
+                    "example": "Delivered"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Status updated. If Delivered, email notification dispatched to user." },
+          "403": { "description": "Forbidden - Chef or Admin role required" }
+        }
+      }
+    }
+  }
+}
